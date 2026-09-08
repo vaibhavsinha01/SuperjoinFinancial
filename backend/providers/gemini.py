@@ -19,9 +19,10 @@ class GeminiProvider(LLMProvider):
         self._client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     def generate_json(self, prompt: str) -> dict | list:
+        model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         try:
             resp = self._client.models.generate_content(
-                model=GEN_MODEL,
+                model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -45,6 +46,12 @@ class GeminiProvider(LLMProvider):
             if text.startswith("json"):
                 text = text[4:]
         try:
-            return json.loads(text)
+            parsed = json.loads(text)
         except json.JSONDecodeError as e:
             raise TransientError(f"invalid JSON from gemini: {e}") from e
+
+        if isinstance(parsed, dict):
+            for list_key in ("facts", "items", "data", "results"):
+                if list_key in parsed and isinstance(parsed[list_key], list):
+                    return parsed[list_key]
+        return parsed

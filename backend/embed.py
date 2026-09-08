@@ -280,41 +280,29 @@ def cosine_sim(a: list[float], b: list[float]) -> float:
     return float(np.dot(a_arr, b_arr) / denom)
 
 
-def top_similar(new_fact: dict, candidate_facts: list[dict], k: int = 5, threshold: float = 0.55) -> list[dict]:
+def top_similar(new_fact: dict, candidate_facts: list[dict], k: int = 5, threshold: float = 0.50) -> list[dict]:
     """Return up to k candidate facts most similar to new_fact above threshold.
-    Uses FAISS when available; falls back to O(n²) cosine for small candidate sets."""
+    Directly evaluates candidate_facts to avoid same-document index crowding."""
     new_emb = _safe_load_vector(new_fact.get("embedding"))
     if new_emb is None:
         logger.info("skipping retrieval for fact_id=%s: no valid embedding", new_fact.get("id"))
         return []
 
     new_id = new_fact.get("id")
-
-    # Use FAISS if the index is populated; otherwise fall back to linear scan
-    if _FAISS_INDEX.size > 0:
-        # Build a quick lookup by fact_id from candidate_facts
-        cand_by_id = {c["id"]: c for c in candidate_facts if c.get("id") is not None}
-        hits = faiss_search(new_emb, k=k + 1, threshold=threshold)
-        results = []
-        for fid, sim in hits:
-            if fid == new_id:
-                continue  # no self-similarity
-            if fid in cand_by_id:
-                results.append(cand_by_id[fid])
-            if len(results) >= k:
-                break
-        return results
-
-    # Linear fallback for cases where FAISS hasn't been seeded yet
     scored = []
     for cand in candidate_facts:
-        if cand.get("id") == new_id:
+        cid = cand.get("id")
+        if cid is None or cid == new_id:
             continue
         cand_emb = _safe_load_vector(cand.get("embedding"))
         if cand_emb is None:
             continue
         sim = cosine_sim(new_emb, cand_emb)
+        # Give a boost if normalized metrics match
+        if new_fact.get("norm_metric") and new_fact.get("norm_metric") == cand.get("norm_metric"):
+            sim = max(sim, 0.95)
         if sim >= threshold:
             scored.append((sim, cand))
+
     scored.sort(key=lambda x: -x[0])
     return [c for _, c in scored[:k]]

@@ -19,6 +19,7 @@ _FACTS_NEW_COLUMNS = {
     "norm_unit": "TEXT",
     "norm_period": "TEXT",
     "norm_scope": "TEXT",
+    "numeric_confidence": "REAL",             # indicative 0-1 confidence, distinct from the low/medium/high label
 }
 
 _RELATIONS_NEW_COLUMNS = {
@@ -111,8 +112,8 @@ def add_fact(fact: dict) -> int:
             """INSERT INTO facts
             (document_id, chunk_id, page_no, entity, metric, value, unit, period, scope, quote,
              confidence, is_reported_value, embedding, embedding_status, embedding_model, embedding_error,
-             norm_metric, norm_value, norm_unit, norm_period, norm_scope)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+             norm_metric, norm_value, norm_unit, norm_period, norm_scope, numeric_confidence)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 fact["document_id"], fact.get("chunk_id"), fact["page_no"], fact["entity"], fact["metric"],
                 fact["value"], fact.get("unit"), fact.get("period"), fact.get("scope"), fact["quote"],
@@ -120,7 +121,7 @@ def add_fact(fact: dict) -> int:
                 fact.get("embedding_json"), fact.get("embedding_status", "pending"),
                 fact.get("embedding_model"), fact.get("embedding_error"),
                 fact.get("norm_metric"), fact.get("norm_value"), fact.get("norm_unit"),
-                fact.get("norm_period"), fact.get("norm_scope"),
+                fact.get("norm_period"), fact.get("norm_scope"), fact.get("numeric_confidence", 0.6),
             ),
         )
         return cur.lastrowid
@@ -177,3 +178,12 @@ def list_documents() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM documents").fetchall()
     return [dict(r) for r in rows]
+
+
+def delete_document_facts(document_id: str):
+    with get_conn() as conn:
+        fact_ids = [r[0] for r in conn.execute("SELECT id FROM facts WHERE document_id=?", (document_id,)).fetchall()]
+        if fact_ids:
+            placeholders = ",".join("?" for _ in fact_ids)
+            conn.execute(f"DELETE FROM relations WHERE fact_a_id IN ({placeholders}) OR fact_b_id IN ({placeholders})", fact_ids + fact_ids)
+            conn.execute("DELETE FROM facts WHERE document_id=?", (document_id,))

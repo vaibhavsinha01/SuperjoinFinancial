@@ -70,6 +70,35 @@ async def upload_pdf(file: UploadFile = File(...)):
     }
 
 
+@app.post("/reprocess")
+def reprocess_all():
+    """Reprocess all uploaded PDFs and re-run cross-referencing."""
+    llm.reset_metrics()
+    results = {}
+    pdf_files = [f for f in os.listdir(UPLOAD_DIR) if f.lower().endswith(".pdf")]
+    for fname in sorted(pdf_files):
+        path = os.path.join(UPLOAD_DIR, fname)
+        new_facts = process_pdf(path)
+        for fact in new_facts:
+            if fact.get("embedding_status") == "success" and fact.get("embedding"):
+                import json
+                try:
+                    vec = json.loads(fact["embedding"]) if isinstance(fact["embedding"], str) else fact["embedding"]
+                    if vec:
+                        embed_mod.get_faiss_index().add(fact["id"], vec)
+                except Exception as e:
+                    logger.warning("could not add fact %s to FAISS: %s", fact.get("id"), e)
+        compare_new_facts(new_facts)
+        results[fname] = len(new_facts)
+
+    return {
+        "reprocessed": results,
+        "total_facts": len(store.get_all_facts()),
+        "total_relations": len(store.get_all_relations()),
+        "metrics": llm.get_metrics(),
+    }
+
+
 @app.get("/documents")
 def list_documents():
     return store.list_documents()

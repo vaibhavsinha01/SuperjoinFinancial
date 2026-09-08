@@ -427,6 +427,80 @@
     border-radius: 4px;
   }
 
+  .conf-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .conf-badge.conf-high { color: var(--accent); border-color: rgba(110,231,183,0.4); }
+  .conf-badge.conf-medium { color: var(--recon); border-color: rgba(251,191,36,0.4); }
+  .conf-badge.conf-low { color: var(--contra); border-color: rgba(248,113,113,0.4); }
+
+  .reason-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    text-transform: capitalize;
+  }
+
+  .norm-line {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: 'SF Mono', Monaco, monospace;
+  }
+
+  .ev-block {
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .ev-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+
+  .rel-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    position: relative;
+  }
+
+  .rel-arrow::before {
+    content: '↓ relationship ↓';
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .rel-arrow .badge, .rel-arrow .conf-badge, .rel-arrow .reason-badge {
+    margin-top: 10px;
+  }
+
   /* Loading indicator */
   .loading {
     display: inline-block;
@@ -517,11 +591,12 @@ async function loadDocuments() {
   docs.forEach(d => {
     const el = document.createElement("div");
     el.className = "doc-item";
+    const large = d.num_pages && d.num_pages > 7;
     el.innerHTML = `
       <span class="icon">📄</span>
       <div class="info">
         <div class="filename">${escapeHtml(d.filename)}</div>
-        <div class="meta">${d.num_pages} pages</div>
+        <div class="meta">${d.num_pages} pages${large ? ' · ⚡ filtered (large PDF)' : ''}</div>
       </div>
     `;
     el.onclick = () => loadFacts(d.id, d.filename);
@@ -535,6 +610,24 @@ async function loadFacts(documentId, label) {
   const res = await fetch(url);
   const facts = await res.json();
   renderFacts(facts);
+}
+
+function confidencePct(f) {
+  const nc = f.numeric_confidence;
+  if (nc === null || nc === undefined) return null;
+  return Math.round(nc * 100);
+}
+
+function confidenceBadge(f) {
+  const pct = confidencePct(f);
+  const label = escapeHtml(f.confidence || "medium");
+  return `<span class="conf-badge conf-${label}">${pct !== null ? pct + '%' : ''} ${label}</span>`;
+}
+
+function normalizedLine(f) {
+  if (f.norm_value === null || f.norm_value === undefined) return "";
+  const parts = [f.norm_value, f.norm_unit || ""].filter(Boolean).join(" ");
+  return `<div class="norm-line">🧮 normalized: ${escapeHtml(f.norm_metric || "")} = ${escapeHtml(String(parts))}${f.norm_period ? " (" + escapeHtml(f.norm_period) + ")" : ""}</div>`;
 }
 
 function renderFacts(facts) {
@@ -553,7 +646,9 @@ function renderFacts(facts) {
         <span>📖 p.${f.page_no}</span>
         <span>📅 ${escapeHtml(f.period || "period n/a")}</span>
         <span>🌐 ${escapeHtml(f.scope || "global")}</span>
+        ${confidenceBadge(f)}
       </div>
+      ${normalizedLine(f)}
       <div class="quote">"${escapeHtml(f.quote)}"</div>
     `;
     el.onclick = () => loadDetail(f);
@@ -561,20 +656,34 @@ function renderFacts(facts) {
   });
 }
 
+function evidenceBlock(label, f, evidenceOverride) {
+  const quote = evidenceOverride && evidenceOverride.trim() ? evidenceOverride : f.quote;
+  return `
+    <div class="ev-block">
+      <div class="ev-label">${label}</div>
+      <div class="header">
+        <span class="metric">${escapeHtml(f.entity)} — ${escapeHtml(f.metric)}</span>
+        <span class="value">${escapeHtml(f.value)} ${escapeHtml(f.unit || "")}</span>
+      </div>
+      <div class="meta">
+        <span>📄 ${escapeHtml(f.document_id)}</span>
+        <span>📖 p.${f.page_no}</span>
+        <span>📅 ${escapeHtml(f.period || "n/a")}</span>
+        <span>🌐 ${escapeHtml(f.scope || "global")}</span>
+        ${confidenceBadge(f)}
+      </div>
+      ${normalizedLine(f)}
+      <div class="quote">📌 "${escapeHtml(quote)}"</div>
+    </div>
+  `;
+}
+
 async function loadDetail(fact) {
   const panel = document.getElementById("detail-panel");
   panel.innerHTML = `
     <div class="detail-header">
       <div class="fact-card">
-        <div class="header">
-          <span class="metric">${escapeHtml(fact.entity)} — ${escapeHtml(fact.metric)}</span>
-          <span class="value">${escapeHtml(fact.value)} ${escapeHtml(fact.unit || "")}</span>
-        </div>
-        <div class="meta">
-          <span>📄 ${escapeHtml(fact.document_id)}</span>
-          <span>📖 p.${fact.page_no}</span>
-        </div>
-        <div class="quote">"${escapeHtml(fact.quote)}"</div>
+        ${evidenceBlock("SELECTED FACT", fact)}
       </div>
     </div>
     <div id="rel-loading" class="empty"><span class="loading"></span> Loading relations…</div>
@@ -589,20 +698,19 @@ async function loadDetail(fact) {
   loading.remove();
   relations.forEach(r => {
     const o = r.other_fact;
+    const relPct = (r.confidence !== null && r.confidence !== undefined) ? Math.round(r.confidence * 100) : null;
+    const reason = r.reason && r.reason !== "none" ? r.reason.replace(/_/g, " ") : null;
     const el = document.createElement("div");
     el.className = "rel-card";
     el.innerHTML = `
-      <div class="header">
-        <span class="badge ${r.relation_type}">${r.relation_type}</span>
-        <strong>${escapeHtml(o.entity)} — ${escapeHtml(o.metric)}: ${escapeHtml(o.value)} ${escapeHtml(o.unit || "")}</strong>
+      ${evidenceBlock("FACT A (this fact)", fact, r.fact_a_evidence)}
+      <div class="rel-arrow">
+        <span class="badge ${r.relation_type}">${escapeHtml(r.relation_type)}</span>
+        ${relPct !== null ? `<span class="conf-badge">${relPct}% confidence</span>` : ''}
+        ${reason ? `<span class="reason-badge">${escapeHtml(reason)}</span>` : ''}
       </div>
-      <div class="meta">
-        <span>📄 ${escapeHtml(o.document_id)}</span>
-        <span>📖 p.${o.page_no}</span>
-        <span>📅 ${escapeHtml(o.period || "")}</span>
-      </div>
-      <div class="quote">"${escapeHtml(o.quote)}"</div>
-      <div class="expl">${escapeHtml(r.explanation)}</div>
+      ${o ? evidenceBlock("FACT B (related)", o, r.fact_b_evidence) : '<div class="empty">Related fact unavailable.</div>'}
+      <div class="expl"><strong>Reasoning:</strong> ${escapeHtml(r.explanation)}</div>
     `;
     panel.appendChild(el);
   });

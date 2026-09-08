@@ -46,22 +46,23 @@ def _deterministic_compare(fact_a: dict, fact_b: dict) -> Relation | None:
     or None if the LLM should handle it.
 
     Deterministic cases:
-    - Same entity + metric + unit, numerically within 1% → CORROBORATES
-    - Same entity + metric + unit, different period only → RECONCILABLE (different_reporting_period)
-    - Same entity + metric + unit, same period, values differ >1% → RECONCILABLE (updated_information)
+    - Same entity + metric + unit + scope (if stated), numerically within 1% → CORROBORATES
+    - Same entity + metric + unit + scope (if stated), different period only → RECONCILABLE (different_reporting_period)
+    - Same entity + metric + unit + scope (if stated), same period, values differ >1% → RECONCILABLE (updated_information)
+    - Scope stated on both sides and differs → always deferred to the LLM (needs semantic judgment)
     """
-    # Need normalized fields for deterministic comparison
+    from backend.normalize import clean_entity
     na, nb = fact_a.get("norm_metric"), fact_b.get("norm_metric")
     ua, ub = fact_a.get("norm_unit"), fact_b.get("norm_unit")
     va, vb = fact_a.get("norm_value"), fact_b.get("norm_value")
     pa, pb = fact_a.get("norm_period"), fact_b.get("norm_period")
-    ea, eb = fact_a.get("entity", "").strip().lower(), fact_b.get("entity", "").strip().lower()
+    ea, eb = clean_entity(fact_a.get("entity")), clean_entity(fact_b.get("entity"))
 
     # All required normalized fields must be present
     if not all([na, ua, va is not None, vb is not None, ea, eb]):
         return None
 
-    # Entities must match (case-insensitive)
+    # Entities must match (canonical cleaned form)
     if ea != eb:
         return None
 
@@ -69,9 +70,30 @@ def _deterministic_compare(fact_a: dict, fact_b: dict) -> Relation | None:
     if na != nb:
         return None
 
-    # Units must match (or one is unitless)
-    units_match = (ua == ub) or ua == "unitless" or ub == "unitless"
+    # Units must match (or one is unitless, or equivalent currencies)
+    units_match = (
+        (ua == ub)
+        or ua == "unitless"
+        or ub == "unitless"
+        or {ua, ub} <= {"inr", "rs"}
+        or {ua, ub} <= {"usd", "$"}
+    )
     if not units_match:
+        return None
+
+    # Scope must match when both facts explicitly state one. Different scope (e.g.
+    # consolidated vs standalone, India vs global) is a common source of false
+    # "corroborates" calls — if both sides state a real scope and it differs, this needs
+    # semantic judgment (is a small value difference expected given the scope difference,
+    # or not?), so hand off to the LLM rather than deciding deterministically. Facts with
+    # no stated scope are normalized to "unspecified" (see normalize.py) and are not
+    # treated as a real scope value here, so two same-value facts where neither document
+    # mentions scope can still be resolved deterministically.
+    sa = (fact_a.get("norm_scope") or "").strip().lower()
+    sb = (fact_b.get("norm_scope") or "").strip().lower()
+    sa = "" if sa == "unspecified" else sa
+    sb = "" if sb == "unspecified" else sb
+    if sa and sb and sa != sb:
         return None
 
     fid_a = fact_a.get("id", 0)
@@ -89,7 +111,7 @@ def _deterministic_compare(fact_a: dict, fact_b: dict) -> Relation | None:
     max_val = max(abs(av), abs(bv))
     rel_diff = abs(av - bv) / max_val if max_val > 0 else 0.0
 
-    periods_match = (pa == pb) if (pa and pb) else False
+    periods_match = (pa == pb) or (not pa and not pb)
 
     if rel_diff <= _CORROBORATE_TOLERANCE:
         # Values are effectively the same

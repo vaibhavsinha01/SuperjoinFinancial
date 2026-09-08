@@ -29,22 +29,24 @@ RULES
    stated or clearly implied by context, use null. Never guess a value that is not in the text.
 7. Give each fact a "confidence": "high" (stated directly and unambiguously), "medium"
    (requires minor inference, e.g. period implied by surrounding context), or "low" (uncertain).
-8. Skip the chunk entirely if it has no extractable facts — return an empty array.
+8. Skip the chunk entirely if it has no extractable facts — return {{"facts": []}}.
 
 OUTPUT
-Return ONLY a JSON array of objects with exactly these fields:
-[
-  {{
-    "entity": "...",
-    "metric": "...",
-    "value": "...",
-    "unit": "..." | null,
-    "period": "..." | null,
-    "scope": "..." | null,
-    "quote": "...",
-    "page_no": 0,
-    "is_reported_value": true,
-    "confidence": "high" | "medium" | "low"
-  }}
-]
-No markdown fences, no commentary, no trailing text — a JSON array only.
+Return ONLY a JSON object with a "facts" key containing an array of objects with exactly these fields:
+{{
+  "facts": [
+    {{
+      "entity": "...",
+      "metric": "...",
+      "value": "...",
+      "unit": "..." | null,
+      "period": "..." | null,
+      "scope": "..." | null,
+      "quote": "...",
+      "page_no": 0,
+      "is_reported_value": true,
+      "confidence": "high" | "medium" | "low"
+    }}
+  ]
+}}
+No markdown fences, no commentary, no trailing text — a JSON object only.

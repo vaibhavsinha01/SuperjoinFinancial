@@ -18,6 +18,12 @@ PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "extract_facts.
 with open(PROMPT_PATH) as f:
     EXTRACT_PROMPT = f.read()
 
+# Indicative mapping from the LLM's qualitative label to a 0-1 score for display/sorting.
+# This is NOT a calibrated probability — it's a simple, understandable proxy so the UI
+# has something numeric to show without asking the model for a second, harder-to-trust
+# confidence signal per fact.
+_QUALITATIVE_TO_NUMERIC = {"high": 0.9, "medium": 0.6, "low": 0.35}
+
 
 def _extract_chunk_facts(chunk: dict) -> list[dict]:
     """Call the LLM on one chunk and return raw fact dicts (page_no filled in per-fact
@@ -34,6 +40,12 @@ def _extract_chunk_facts(chunk: dict) -> list[dict]:
         logger.error("chunk %s extraction failed, all providers exhausted: %s", chunk["chunk_id"], e)
         return []
 
+    if isinstance(raw, dict):
+        for k in ("facts", "items", "data", "results"):
+            if k in raw and isinstance(raw[k], list):
+                raw = raw[k]
+                break
+
     if not isinstance(raw, list):
         logger.warning("chunk %s: expected list, got %s", chunk["chunk_id"], type(raw))
         return []
@@ -46,6 +58,9 @@ def _extract_chunk_facts(chunk: dict) -> list[dict]:
         # guard against the model returning a page outside this chunk's actual range
         if not isinstance(page_no, int) or page_no not in chunk["page_map"]:
             page_no = chunk["start_page"]
+        conf_label = str(rf.get("confidence", "medium")).strip().lower()
+        if conf_label not in _QUALITATIVE_TO_NUMERIC:
+            conf_label = "medium"
         out.append({
             "document_id": chunk["document_id"],
             "chunk_id": chunk["chunk_id"],
@@ -57,7 +72,8 @@ def _extract_chunk_facts(chunk: dict) -> list[dict]:
             "period": rf.get("period"),
             "scope": rf.get("scope"),
             "quote": str(rf.get("quote", "")).strip(),
-            "confidence": rf.get("confidence", "medium"),
+            "confidence": conf_label,
+            "numeric_confidence": _QUALITATIVE_TO_NUMERIC[conf_label],
             "is_reported_value": rf.get("is_reported_value", True),
         })
     return out
@@ -75,6 +91,7 @@ def process_pdf(pdf_path: str) -> list[dict]:
     document_id = chunks[0]["document_id"]
     num_pages = fitz.open(pdf_path).page_count
     store.add_document(document_id, os.path.basename(pdf_path), num_pages)
+    store.delete_document_facts(document_id)
 
     stored_facts = []
     try:

@@ -26,13 +26,30 @@ class Fact(BaseModel):
     scope: Optional[str] = None
     quote: str = Field(min_length=1)
     confidence: str = "medium"
+    numeric_confidence: float = 0.6
 
-    @field_validator("confidence")
+    @field_validator("confidence", mode="before")
     @classmethod
     def _valid_confidence(cls, v):
-        if v not in ("low", "medium", "high"):
+        s = str(v).strip().lower() if v is not None else "medium"
+        if s not in ("low", "medium", "high"):
             return "medium"
-        return v
+        return s
+
+    @field_validator("numeric_confidence", mode="before")
+    @classmethod
+    def _normalize_numeric_confidence(cls, v):
+        """Indicative 0-1 score, not a calibrated probability. Falls back to a
+        mapping from the qualitative label if no usable numeric value is present."""
+        try:
+            f = float(v)
+            if f != f:
+                raise ValueError
+            if 5.0 < f <= 100.0:
+                f = f / 100.0
+            return max(0.0, min(1.0, f))
+        except (TypeError, ValueError):
+            return 0.6
 
 
 # ---------- Normalization ----------
@@ -104,8 +121,64 @@ class Relation(BaseModel):
     fact_a_id: int
     fact_b_id: int
     relation_type: RelationType
-    confidence: float = Field(ge=0.0, le=1.0, default=0.5)
+    confidence: float = 0.5
     reason: ReconcileReason = ReconcileReason.NONE
     explanation: str = ""
     fact_a_evidence: str = ""
     fact_b_evidence: str = ""
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _normalize_confidence(cls, v):
+        """Coerce whatever the LLM (or deterministic path) returns into a sensible
+        0-1 indicative score rather than rejecting the whole relation. Handles common
+        LLM slip-ups: percentages (0-100), out-of-range floats, strings, None."""
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return 0.5
+        if f != f:  # NaN
+            return 0.5
+        if 5.0 < f <= 100.0:
+            # Clearly given as a percentage (e.g. 85 instead of 0.85)
+            f = f / 100.0
+        return max(0.0, min(1.0, f))
+
+    @field_validator("relation_type", mode="before")
+    @classmethod
+    def _coerce_relation_type(cls, v):
+        s = str(v).strip().lower()
+        if "corroborat" in s:
+            return RelationType.CORROBORATES
+        if "contradict" in s:
+            return RelationType.CONTRADICTS
+        if "reconcil" in s:
+            return RelationType.RECONCILABLE
+        return RelationType.UNRELATED
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _coerce_reason(cls, v):
+        if not v:
+            return ReconcileReason.NONE
+        s = str(v).strip().lower().replace("-", "_").replace(" ", "_")
+        if "period" in s:
+            return ReconcileReason.DIFFERENT_PERIOD
+        if "scope" in s:
+            return ReconcileReason.DIFFERENT_SCOPE
+        if "def" in s:
+            return ReconcileReason.DIFFERENT_DEFINITION
+        if "geo" in s:
+            return ReconcileReason.DIFFERENT_GEOGRAPHY
+        if "unit" in s:
+            return ReconcileReason.DIFFERENT_UNIT
+        if "curr" in s:
+            return ReconcileReason.DIFFERENT_CURRENCY
+        if "update" in s or "restate" in s:
+            return ReconcileReason.UPDATED_INFORMATION
+        if "estimat" in s or "method" in s:
+            return ReconcileReason.DIFFERENT_ESTIMATION_METHOD
+        try:
+            return ReconcileReason(s)
+        except ValueError:
+            return ReconcileReason.NONE

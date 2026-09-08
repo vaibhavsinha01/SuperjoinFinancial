@@ -14,15 +14,17 @@ class GroqProvider(LLMProvider):
         self._client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
     def generate_json(self, prompt: str) -> dict | list:
+        model = os.environ.get("GROQ_MODEL", GROQ_MODEL)
         try:
             resp = self._client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=model,
                 messages=[
                     {"role": "system", "content": "Respond with strict JSON only. No markdown, no commentary."},
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"} if "{{" not in prompt else None,
                 temperature=0.1,
+                max_tokens=4096,
             )
         except Exception as e:
             msg = str(e).lower()
@@ -43,9 +45,10 @@ class GroqProvider(LLMProvider):
         except json.JSONDecodeError as e:
             raise TransientError(f"invalid JSON from groq: {e}") from e
 
-        # Groq's json_object mode only allows a JSON *object*; our prompts sometimes
-        # want a top-level array, so we ask for that wrapped as {"items": [...]} and
-        # unwrap it here to keep the provider interface uniform.
-        if isinstance(parsed, dict) and set(parsed.keys()) == {"items"}:
-            return parsed["items"]
+        # Groq's json_object mode requires a JSON object; our extraction prompts
+        # wrap the array as {"facts": [...]} or {"items": [...]}.
+        if isinstance(parsed, dict):
+            for list_key in ("facts", "items", "data", "results"):
+                if list_key in parsed and isinstance(parsed[list_key], list):
+                    return parsed[list_key]
         return parsed

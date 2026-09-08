@@ -1,10 +1,46 @@
+# Environment / secrets
 .env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
-*.pyc
-data/factloom.db
-data/uploads/
-.venv/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
 venv/
-docs/
-data/
-*.db 
+.venv/
+env/
+ENV/
+
+# Databases / runtime state
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded/generated files
+data/uploads/
+data/cache/
+uploads/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Build/cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
