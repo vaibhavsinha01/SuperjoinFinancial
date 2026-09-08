@@ -1,4 +1,4 @@
-# FactLoom
+# SuperJoin Financial Intelligence
 
 A fact knowledge layer for financial/economic PDFs: upload documents, extract grounded,
 page-cited facts, and see how facts across documents corroborate, contradict, or reconcile
