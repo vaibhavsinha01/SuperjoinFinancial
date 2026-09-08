@@ -6,6 +6,10 @@ with each other — with a confidence score and a plain-English explanation for 
 
 Built for the Superjoin VIT 2026 Engineering Intern assignment.
 
+## Architecture
+
+![FactLoom Architecture](architectural_diagram.png)
+
 ---
 
 ## Setup and Run Instructions
