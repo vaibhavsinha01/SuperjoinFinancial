@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+data/factloom.db
+data/uploads/
+.venv/
+venv/
+docs/
+data/
+*.db 

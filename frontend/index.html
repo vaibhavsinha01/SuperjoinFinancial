@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>FactLoom</title>
+<style>
+  :root {
+    --bg:#0f1115;
+    --panel:#171a21;
+    --border:#2a2e38;
+    --text:#e5e7eb;
+    --muted:#9aa0ac;
+    --accent:#6ee7b7;
+    --contra:#f87171;
+    --recon:#fbbf24;
+    --hover:#1f232a;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --radius: 8px;
+    --transition: all 0.2s ease;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+  }
+
+  header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  header .sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  main {
+    display: flex;
+    height: calc(100vh - 73px);
+    overflow: hidden;
+  }
+
+  .col {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .col-left {
+    width: 300px;
+    min-width: 250px;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .col-mid {
+    flex: 1;
+    min-width: 400px;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .col-right {
+    width: 360px;
+    min-width: 300px;
+    background: var(--panel);
+  }
+
+  /* Upload Box - Enhanced */
+  .upload-box {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: var(--transition);
+    background: var(--hover);
+    cursor: pointer;
+  }
+
+  .upload-box:hover {
+    border-color: var(--accent);
+    background: rgba(110, 231, 183, 0.05);
+  }
+
+  .upload-box.dragover {
+    border-color: var(--accent);
+    background: rgba(110, 231, 183, 0.1);
+  }
+
+  .upload-box input {
+    display: none;
+  }
+
+  .upload-box label {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    transition: var(--transition);
+  }
+
+  .upload-box label:hover {
+    background: rgba(110, 231, 183, 0.1);
+  }
+
+  .upload-icon {
+    font-size: 20px;
+  }
+
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 12px;
+    min-height: 18px;
+  }
+
+  .status.processing {
+    color: var(--accent);
+  }
+
+  .status.error {
+    color: var(--contra);
+  }
+
+  /* Documents List */
+  h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin: 0 0 12px;
+    padding: 0 4px;
+    font-weight: 600;
+  }
+
+  .doc-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-bottom: 6px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+  }
+
+  .doc-item:hover {
+    background: var(--hover);
+    border-color: var(--border);
+  }
+
+  .doc-item.active {
+    background: rgba(110, 231, 183, 0.1);
+    border-color: var(--accent);
+  }
+
+  .doc-item .icon {
+    color: var(--muted);
+    font-size: 14px;
+    width: 16px;
+    text-align: center;
+  }
+
+  .doc-item .info {
+    flex: 1;
+  }
+
+  .doc-item .filename {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .doc-item .meta {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  /* Facts List - Enhanced */
+  #facts-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 16px;
+    padding: 0 4px;
+    font-weight: 600;
+  }
+
+  .fact-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .fact-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: var(--transition);
+  }
+
+  .fact-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+  }
+
+  .fact-card:hover::before {
+    opacity: 1;
+  }
+
+  .fact-card .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .fact-card .metric {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .fact-card .value {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'SF Mono', Monaco, monospace;
+  }
+
+  .fact-card .meta {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .fact-card .meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .fact-card .quote {
+    font-style: italic;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 8px;
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+    line-height: 1.4;
+  }
+
+  /* Empty States */
+  .empty {
+    color: var(--muted);
+    font-size: 13px;
+    padding: 30px 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .empty .icon {
+    font-size: 24px;
+    opacity: 0.5;
+  }
+
+  /* Detail Panel */
+  .detail-header {
+    margin-bottom: 16px;
+  }
+
+  .rel-card {
+    background: var(--hover);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    transition: var(--transition);
+  }
+
+  .rel-card:hover {
+    border-color: var(--accent);
+    background: rgba(110, 231, 183, 0.05);
+  }
+
+  .rel-card .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    margin-right: 6px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .badge.corroborates {
+    background: rgba(6, 78, 59, 0.2);
+    color: var(--accent);
+    border: 1px solid rgba(110, 231, 183, 0.3);
+  }
+
+  .badge.contradicts {
+    background: rgba(69, 10, 10, 0.2);
+    color: var(--contra);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+  }
+
+  .badge.reconcilable {
+    background: rgba(69, 26, 3, 0.2);
+    color: var(--recon);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+  }
+
+  .rel-card strong {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .rel-card .meta {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .rel-card .quote {
+    font-style: italic;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 6px;
+    border-left: 2px solid var(--border);
+    padding-left: 8px;
+    line-height: 1.4;
+  }
+
+  .rel-card .expl {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+
+  /* Loading indicator */
+  .loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 6px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 1200px) {
+    .col-left {
+      width: 280px;
+    }
+    .col-right {
+      width: 340px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    main {
+      flex-direction: column;
+      height: auto;
+      min-height: calc(100vh - 73px);
+    }
+    .col-left, .col-mid, .col-right {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      min-width: 0;
+    }
+    .col {
+      padding: 16px;
+    }
+    .col-right {
+      min-height: 300px;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>FactLoom</h1>
+    <div class="sub">Fact knowledge layer — upload PDFs, inspect grounded facts and cross-document relations</div>
+  </div>
+</header>
+<main>
+  <div class="col col-left">
+    <div class="upload-box" id="upload-box">
+      <label for="pdf-input">
+        <span class="upload-icon">📄</span>
+        Upload PDF
+      </label>
+      <input type="file" id="pdf-input" accept="application/pdf" />
+      <div class="status" id="upload-status"></div>
+    </div>
+    <h3>Documents</h3>
+    <div id="doc-list"></div>
+  </div>
+
+  <div class="col col-mid">
+    <h3 id="facts-title">All Facts</h3>
+    <div id="facts-list"><div class="empty"><span class="icon">📚</span> Upload a PDF to get started.</div></div>
+  </div>
+
+  <div class="col col-right">
+    <h3>Evidence & Relations</h3>
+    <div id="detail-panel"><div class="empty"><span class="icon">ℹ️</span> Click a fact to see its source quote and related facts.</div></div>
+  </div>
+</main>
+
+<script>
+const API = "";
+
+async function loadDocuments() {
+  const res = await fetch(`${API}/documents`);
+  const docs = await res.json();
+  const list = document.getElementById("doc-list");
+  list.innerHTML = docs.length ? "" : '<div class="empty"><span class="icon">📄</span> No documents yet.</div>';
+  docs.forEach(d => {
+    const el = document.createElement("div");
+    el.className = "doc-item";
+    el.innerHTML = `
+      <span class="icon">📄</span>
+      <div class="info">
+        <div class="filename">${escapeHtml(d.filename)}</div>
+        <div class="meta">${d.num_pages} pages</div>
+      </div>
+    `;
+    el.onclick = () => loadFacts(d.id, d.filename);
+    list.appendChild(el);
+  });
+}
+
+async function loadFacts(documentId, label) {
+  document.getElementById("facts-title").textContent = documentId ? `Facts — ${label}` : "All Facts";
+  const url = documentId ? `${API}/facts?document_id=${documentId}` : `${API}/facts`;
+  const res = await fetch(url);
+  const facts = await res.json();
+  renderFacts(facts);
+}
+
+function renderFacts(facts) {
+  const list = document.getElementById("facts-list");
+  list.innerHTML = facts.length ? "" : '<div class="empty"><span class="icon">🔍</span> No facts extracted.</div>';
+  facts.forEach(f => {
+    const el = document.createElement("div");
+    el.className = "fact-card";
+    el.innerHTML = `
+      <div class="header">
+        <span class="metric">${escapeHtml(f.entity)} — ${escapeHtml(f.metric)}</span>
+        <span class="value">${escapeHtml(f.value)} ${escapeHtml(f.unit || "")}</span>
+      </div>
+      <div class="meta">
+        <span>📄 ${escapeHtml(f.document_id)}</span>
+        <span>📖 p.${f.page_no}</span>
+        <span>📅 ${escapeHtml(f.period || "period n/a")}</span>
+        <span>🌐 ${escapeHtml(f.scope || "global")}</span>
+      </div>
+      <div class="quote">"${escapeHtml(f.quote)}"</div>
+    `;
+    el.onclick = () => loadDetail(f);
+    list.appendChild(el);
+  });
+}
+
+async function loadDetail(fact) {
+  const panel = document.getElementById("detail-panel");
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="fact-card">
+        <div class="header">
+          <span class="metric">${escapeHtml(fact.entity)} — ${escapeHtml(fact.metric)}</span>
+          <span class="value">${escapeHtml(fact.value)} ${escapeHtml(fact.unit || "")}</span>
+        </div>
+        <div class="meta">
+          <span>📄 ${escapeHtml(fact.document_id)}</span>
+          <span>📖 p.${fact.page_no}</span>
+        </div>
+        <div class="quote">"${escapeHtml(fact.quote)}"</div>
+      </div>
+    </div>
+    <div id="rel-loading" class="empty"><span class="loading"></span> Loading relations…</div>
+  `;
+  const res = await fetch(`${API}/facts/${fact.id}/relations`);
+  const relations = await res.json();
+  const loading = document.getElementById("rel-loading");
+  if (!relations.length) {
+    loading.innerHTML = '<span class="icon">⚠️</span> No cross-document relations found.';
+    return;
+  }
+  loading.remove();
+  relations.forEach(r => {
+    const o = r.other_fact;
+    const el = document.createElement("div");
+    el.className = "rel-card";
+    el.innerHTML = `
+      <div class="header">
+        <span class="badge ${r.relation_type}">${r.relation_type}</span>
+        <strong>${escapeHtml(o.entity)} — ${escapeHtml(o.metric)}: ${escapeHtml(o.value)} ${escapeHtml(o.unit || "")}</strong>
+      </div>
+      <div class="meta">
+        <span>📄 ${escapeHtml(o.document_id)}</span>
+        <span>📖 p.${o.page_no}</span>
+        <span>📅 ${escapeHtml(o.period || "")}</span>
+      </div>
+      <div class="quote">"${escapeHtml(o.quote)}"</div>
+      <div class="expl">${escapeHtml(r.explanation)}</div>
+    `;
+    panel.appendChild(el);
+  });
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return "";
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// Drag and drop functionality
+const uploadBox = document.getElementById('upload-box');
+const fileInput = document.getElementById('pdf-input');
+
+uploadBox.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadBox.classList.add('dragover');
+});
+
+uploadBox.addEventListener('dragleave', () => {
+  uploadBox.classList.remove('dragover');
+});
+
+uploadBox.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadBox.classList.remove('dragover');
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change'));
+  }
+});
+
+document.getElementById("pdf-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById("upload-status");
+  status.textContent = "";
+  status.className = "status processing";
+  status.innerHTML = '<span class="loading"></span> Processing… this can take a minute.';
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+    const data = await res.json();
+    status.textContent = `✅ Extracted ${data.facts_extracted} facts.`;
+    status.className = "status";
+    await loadDocuments();
+    await loadFacts(data.document_id, file.name);
+  } catch (err) {
+    status.textContent = "❌ Upload failed: " + err;
+    status.className = "status error";
+  }
+});
+
+loadDocuments();
+loadFacts(null, "");
+</script>
+</body>
+</html>

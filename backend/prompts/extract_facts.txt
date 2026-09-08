@@ -1,0 +1,50 @@
+You are extracting atomic, verifiable facts from a chunk of a document. The chunk spans
+multiple pages; each page's text is prefixed with its own page marker like "[page 12]".
+
+Document: {document_id}
+Pages in this chunk: {start_page} to {end_page}
+
+Chunk text:
+\"\"\"
+{chunk_text}
+\"\"\"
+
+TASK
+Extract every atomic, verifiable fact stated in this chunk: financial figures, macroeconomic
+statistics, ratios, dated events, and explicit status statements. An atomic fact states exactly
+ONE measurement or claim about ONE entity for ONE period/scope — do not merge multiple numbers
+or time periods into a single fact, and do not produce vague summaries ("the company performed
+well"). Ignore boilerplate, headers, footers, and page numbers.
+
+RULES
+1. Preserve exact numerical values EXACTLY as printed (keep original digits, commas, decimals).
+2. For every fact, identify: entity, metric, value, unit, period, scope.
+3. "quote" must be a verbatim substring of the chunk text that supports the fact — copy it
+   exactly, do not paraphrase or summarize it.
+4. "page_no" must be the single page (from the [page N] markers in the chunk) where the quote
+   actually appears. Never guess a page outside this chunk's range.
+5. Distinguish reported/actual values ("revenue was X") from commentary, forecasts, targets, or
+   management's forward-looking statements — set "is_reported_value" to false for the latter.
+6. Do NOT invent, infer, or hallucinate any field. If a field (unit, period, scope) is not
+   stated or clearly implied by context, use null. Never guess a value that is not in the text.
+7. Give each fact a "confidence": "high" (stated directly and unambiguously), "medium"
+   (requires minor inference, e.g. period implied by surrounding context), or "low" (uncertain).
+8. Skip the chunk entirely if it has no extractable facts — return an empty array.
+
+OUTPUT
+Return ONLY a JSON array of objects with exactly these fields:
+[
+  {{
+    "entity": "...",
+    "metric": "...",
+    "value": "...",
+    "unit": "..." | null,
+    "period": "..." | null,
+    "scope": "..." | null,
+    "quote": "...",
+    "page_no": 0,
+    "is_reported_value": true,
+    "confidence": "high" | "medium" | "low"
+  }}
+]
+No markdown fences, no commentary, no trailing text — a JSON array only.
